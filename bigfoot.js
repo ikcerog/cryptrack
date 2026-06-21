@@ -4,6 +4,19 @@
    + curated global cryptid cases with Wikipedia references
    ============================================================ */
 
+// leaflet.heat reads pixel data each frame via getImageData; flag its
+// canvas with willReadFrequently so Chrome stops warning and uses a
+// software backing store that's faster for that access pattern.
+(function patchHeatCanvas(){
+  const orig = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function(type, attrs){
+    if (type === "2d" && this.classList && this.classList.contains("leaflet-heatmap-layer")){
+      attrs = Object.assign({ willReadFrequently: true }, attrs || {});
+    }
+    return orig.call(this, type, attrs);
+  };
+})();
+
 /* ---------- 1. CURATED GLOBAL CRYPTID CASES ---------- */
 /* Famous, historically significant or globally notable cryptid
    reports — hand-curated with Wikipedia links and rich blurbs. */
