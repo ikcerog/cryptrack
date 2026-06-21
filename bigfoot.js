@@ -330,8 +330,8 @@ function normalizeBFRO(row){
   if (!row || row.latitude == null || row.longitude == null) return null;
   const lat = +row.latitude, lng = +row.longitude;
   if (!isFinite(lat) || !isFinite(lng)) return null;
-  const date = row.date || "";
-  const year = parseInt((date.match(/\d{4}/) || [])[0] || row.year || 0, 10) || null;
+  const date = row.date || row.timestamp || "";
+  const year = parseInt((date.toString().match(/\d{4}/) || [])[0] || row.year || 0, 10) || null;
   return {
     src: "bfro",
     title: row.title || `${row.classification || "Class A"} Report`,
@@ -696,10 +696,11 @@ function wireUI(){
 
 /* ---------- 13. DATA LOAD ---------- */
 async function loadBFRO(){
-  // jsDelivr GitHub mirror — reliable CORS for the public BFRO dataset
+  // The original bfro_sightings_data repo now uses DVC and no longer commits the CSV.
+  // bigfoot-dash-app hosts the same dataset (number, title, classification, timestamp, lat, lng) on master.
   const urls = [
-    "https://cdn.jsdelivr.net/gh/timothyrenner/bfro-sightings-data@master/data/bfro_reports_geocoded.csv",
-    "https://raw.githubusercontent.com/timothyrenner/bfro-sightings-data/master/data/bfro_reports_geocoded.csv"
+    "https://cdn.jsdelivr.net/gh/timothyrenner/bigfoot-dash-app@master/data/bfro_report_locations.csv",
+    "https://raw.githubusercontent.com/timothyrenner/bigfoot-dash-app/master/data/bfro_report_locations.csv"
   ];
   for (const url of urls){
     try {
