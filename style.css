@@ -344,6 +344,14 @@ input[type="text"]:focus{
   content:""; position:absolute; inset:3px;
   border-radius:50%; background:rgba(255,255,255,.85);
 }
+.sn-marker.cls-U{
+  background:#b14dff; color:#b14dff;
+  width:10px; height:10px;
+  box-shadow:0 0 9px #b14dff;
+  transform:rotate(45deg);
+  border-radius:2px;
+}
+.sn-marker.cls-U::before{border-radius:0; inset:-5px}
 @keyframes pulse{
   0%{transform:scale(1); opacity:.55}
   80%{transform:scale(2.6); opacity:0}
@@ -547,4 +555,26 @@ canvas{max-width:100%; height:120px !important}
   .rail{max-height:none; overflow:visible}
   .map-wrap{height:60vh}
   .modal-grid{grid-template-columns:1fr}
+}
+@media (max-width: 720px){
+  .topbar{
+    grid-template-columns:1fr;
+    grid-auto-rows:auto;
+    gap:8px;
+    padding:8px 12px;
+  }
+  .status{
+    order:-1;
+    justify-self:stretch;
+    width:100%;
+    justify-content:space-between;
+    gap:10px;
+    font-size:10px;
+    overflow:hidden;
+  }
+  .status-row{min-width:0; flex:1 1 auto}
+  .status .val{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .brand{justify-self:start}
+  .brand-sub{display:none}
+  .topnav{justify-self:start; flex-wrap:wrap}
 }

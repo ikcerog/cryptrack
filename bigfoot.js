@@ -242,7 +242,7 @@ const state = {
   visible: [],        // after filter
   filters: {
     yearMin: 1950, yearMax: 2025,
-    classes: new Set(["A", "B", "C", "G"]),
+    classes: new Set(["A", "B", "C", "G", "U"]),
     seasons: new Set(["Spring", "Summer", "Fall", "Winter", "Unknown"]),
     query: ""
   },
@@ -286,8 +286,8 @@ const cluster = L.markerClusterGroup({
 state.layers.cluster = cluster;
 
 const heatLayer = L.heatLayer([], {
-  radius: 18, blur: 22, maxZoom: 12,
-  gradient: { .2:"#003820", .4:"#00ff88", .6:"#aaff00", .8:"#ffb648", 1:"#ff4dd2" }
+  radius: 22, blur: 28, maxZoom: 12, minOpacity: 0.4,
+  gradient: { 0.0:"#0b6a3d", 0.25:"#00ff88", 0.5:"#aaff00", 0.75:"#ffb648", 1.0:"#ff4dd2" }
 });
 state.layers.heat = heatLayer;
 
@@ -298,6 +298,7 @@ const slug = (s) => (s || "").toString().trim();
 
 function classOf(r){
   if (r.global) return "G";
+  if (r.src === "nuforc") return "U";
   const c = (r.classification || "").toString().toUpperCase();
   if (c.includes("A")) return "A";
   if (c.includes("B")) return "B";
@@ -314,12 +315,16 @@ function makeIcon(cls){
 
 function wikiFor(rec){
   if (rec.wiki) return rec.wiki;
-  // synthesize a search link to the state's bigfoot article if available
   const st = rec.state ? rec.state : "";
+  if (rec.src === "nuforc"){
+    if (st) return `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent("UFO sightings " + st)}`;
+    return "https://en.wikipedia.org/wiki/Unidentified_flying_object";
+  }
   if (st) return `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent("Bigfoot sightings " + st)}`;
   return "https://en.wikipedia.org/wiki/Bigfoot";
 }
-function bfroFor(rec){
+function reportLinkFor(rec){
+  if (rec.src === "nuforc") return "https://nuforc.org/databank/";
   if (rec.number) return `https://www.bfro.net/GDB/show_report.asp?id=${encodeURIComponent(rec.number)}`;
   if (rec.global) return "https://en.wikipedia.org/wiki/List_of_cryptids";
   return "https://www.bfro.net/GDB/";
@@ -357,6 +362,56 @@ function normalizeGlobal(c){
   return Object.assign({ src: "global", global: true, classification: "G" }, c);
 }
 
+function seasonFromMonth(m){
+  if (!m || m < 1 || m > 12) return "Unknown";
+  if (m >= 3 && m <= 5) return "Spring";
+  if (m >= 6 && m <= 8) return "Summer";
+  if (m >= 9 && m <= 11) return "Fall";
+  return "Winter";
+}
+function decodeNuforcText(s){
+  return (s || "")
+    .replace(/&#44;/g, ",")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+function titleCase(s){
+  return (s || "").toString().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+function normalizeNUFORC(row){
+  if (!Array.isArray(row) || row.length < 11) return null;
+  const lat = +row[9], lng = +row[10];
+  if (!isFinite(lat) || !isFinite(lng)) return null;
+  const date = (row[0] || "").toString();
+  const monthMatch = date.match(/^(\d{1,2})\//);
+  const yearMatch = date.match(/(\d{4})/);
+  const year = yearMatch ? parseInt(yearMatch[1], 10) : null;
+  const shape = (row[4] || "").toString().trim();
+  const city = (row[1] || "").toString().trim();
+  const st = (row[2] || "").toString().trim().toUpperCase();
+  const country = (row[3] || "").toString().trim().toUpperCase();
+  const cityNice = titleCase(city);
+  const locParts = [cityNice, st, country && country !== "US" ? country : ""].filter(Boolean);
+  return {
+    src: "nuforc",
+    title: shape ? `NUFORC: ${titleCase(shape)} sighting` : "NUFORC report",
+    classification: "U",
+    cryptid: "UFO",
+    desc: decodeNuforcText(row[7]).slice(0, 900) || "Report details unavailable.",
+    state: st,
+    county: "",
+    season: seasonFromMonth(monthMatch ? parseInt(monthMatch[1], 10) : 0),
+    location: locParts.join(", "),
+    date, year,
+    shape,
+    duration: row[6] || "",
+    lat, lng
+  };
+}
+
 /* ---------- 6. RENDER ---------- */
 function makeMarker(rec){
   const cls = classOf(rec);
@@ -374,10 +429,11 @@ function rebuildMap(){
   const markers = [];
   for (const r of state.visible){
     if (state.view !== "heatmap") markers.push(makeMarker(r));
-    heatPts.push([r.lat, r.lng, r.global ? 1.0 : 0.55]);
+    heatPts.push([r.lat, r.lng, r.global ? 1.0 : 0.75]);
   }
   if (state.view !== "heatmap") cluster.addLayers(markers);
   heatLayer.setLatLngs(heatPts);
+  if (heatLayer._map) heatLayer.redraw();
 
   // layer toggle
   if (state.view === "markers"){
@@ -543,7 +599,8 @@ function showHoverCard(rec, marker){
   ].filter(Boolean).join(" · ").toUpperCase();
   $("#hc-desc").textContent = (rec.desc || rec.summary || "Details unavailable.").slice(0, 360);
   $("#hc-wiki").href = wikiFor(rec);
-  $("#hc-bfro").href = bfroFor(rec);
+  $("#hc-bfro").href = reportLinkFor(rec);
+  $("#hc-bfro").textContent = rec.src === "nuforc" ? "↗ NUFORC" : "↗ More data";
 
   // position near marker in pixel space
   const pt = map.latLngToContainerPoint(marker.getLatLng());
@@ -569,7 +626,7 @@ function updateReadout(r){
     <div class="kv"><b>Where</b><span>${r.location || r.state || "Unknown"}</span></div>
     <div class="kv"><b>When</b><span>${r.date || r.year || "Unknown"} · ${r.season || "Unknown"}</span></div>
     <p>${(r.desc || r.summary || "").slice(0, 280)}…</p>
-    <p><a href="${wikiFor(r)}" target="_blank" rel="noopener">Wikipedia ↗</a> · <a href="${bfroFor(r)}" target="_blank" rel="noopener">${r.number ? "BFRO record ↗" : "More refs ↗"}</a></p>
+    <p><a href="${wikiFor(r)}" target="_blank" rel="noopener">Wikipedia ↗</a> · <a href="${reportLinkFor(r)}" target="_blank" rel="noopener">${r.src === "nuforc" ? "NUFORC ↗" : r.number ? "BFRO record ↗" : "More refs ↗"}</a></p>
   `;
   $("#readout").innerHTML = html;
 }
@@ -577,7 +634,10 @@ function updateReadout(r){
 /* ---------- 11. MODAL ---------- */
 function openModal(r){
   const cls = classOf(r);
-  $("#m-tag").textContent = r.global ? "NOTABLE / GLOBAL" : `BFRO REPORT · CLASS ${cls}`;
+  const tag = r.global ? "NOTABLE / GLOBAL"
+            : r.src === "nuforc" ? "NUFORC REPORT · UAP"
+            : `BFRO REPORT · CLASS ${cls}`;
+  $("#m-tag").textContent = tag;
   $("#m-title").textContent = r.title || "Sighting Report";
   $("#m-meta").textContent = [
     r.date || r.year || "Date unknown",
@@ -594,12 +654,25 @@ function openModal(r){
     w.visibility != null ? `Vis ${w.visibility} mi` : null,
     w.wind != null ? `Wind ${w.wind} mph` : null
   ].filter(Boolean).join(" · ") || "Conditions unavailable.";
-  $("#m-cond").textContent = cond;
+  if (r.src === "nuforc" && (r.shape || r.duration)){
+    $("#m-cond").textContent = [
+      r.shape ? `Shape: ${titleCase(r.shape)}` : null,
+      r.duration ? `Duration: ${r.duration}` : null
+    ].filter(Boolean).join(" · ");
+  } else {
+    $("#m-cond").textContent = cond;
+  }
 
   const links = [];
-  links.push(`<li><a href="${wikiFor(r)}" target="_blank" rel="noopener">Wikipedia: ${r.cryptid || "Bigfoot"}</a></li>`);
-  links.push(`<li><a href="${bfroFor(r)}" target="_blank" rel="noopener">${r.number ? "BFRO report #" + r.number : "BFRO geo database"}</a></li>`);
-  if (r.state) links.push(`<li><a href="https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent("Bigfoot " + r.state)}" target="_blank" rel="noopener">Wikipedia: Bigfoot in ${r.state}</a></li>`);
+  const cryptidLabel = r.cryptid || (r.src === "nuforc" ? "UFO" : "Bigfoot");
+  links.push(`<li><a href="${wikiFor(r)}" target="_blank" rel="noopener">Wikipedia: ${cryptidLabel}</a></li>`);
+  if (r.src === "nuforc"){
+    links.push(`<li><a href="${reportLinkFor(r)}" target="_blank" rel="noopener">NUFORC database</a></li>`);
+    if (r.state) links.push(`<li><a href="https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent("UFO " + r.state)}" target="_blank" rel="noopener">Wikipedia: UFO sightings in ${r.state}</a></li>`);
+  } else {
+    links.push(`<li><a href="${reportLinkFor(r)}" target="_blank" rel="noopener">${r.number ? "BFRO report #" + r.number : "BFRO geo database"}</a></li>`);
+    if (r.state) links.push(`<li><a href="https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent("Bigfoot " + r.state)}" target="_blank" rel="noopener">Wikipedia: Bigfoot in ${r.state}</a></li>`);
+  }
   links.push(`<li><a href="https://www.google.com/maps/@${r.lat},${r.lng},10z" target="_blank" rel="noopener">Open coordinates on Google Maps</a></li>`);
   $("#m-links").innerHTML = links.join("");
 
@@ -666,7 +739,7 @@ function wireUI(){
   $("#reset-filters").addEventListener("click", () => {
     document.querySelectorAll('input[data-class]').forEach(cb => { cb.checked = true; });
     document.querySelectorAll('input[data-season]').forEach(cb => { cb.checked = true; });
-    state.filters.classes = new Set(["A","B","C","G"]);
+    state.filters.classes = new Set(["A","B","C","G","U"]);
     state.filters.seasons = new Set(["Spring","Summer","Fall","Winter","Unknown"]);
     ymin.value = 1950; ymax.value = 2025;
     $("#search").value = "";
@@ -695,34 +768,64 @@ function wireUI(){
 }
 
 /* ---------- 13. DATA LOAD ---------- */
-async function loadBFRO(){
-  // The original bfro_sightings_data repo now uses DVC and no longer commits the CSV.
-  // bigfoot-dash-app hosts the same dataset (number, title, classification, timestamp, lat, lng) on master.
-  const urls = [
-    "https://cdn.jsdelivr.net/gh/timothyrenner/bigfoot-dash-app@master/data/bfro_report_locations.csv",
-    "https://raw.githubusercontent.com/timothyrenner/bigfoot-dash-app/master/data/bfro_report_locations.csv"
-  ];
+const feeds = { bfro: "…", nuforc: "…" };
+function setFeedStatus(name, msg){
+  feeds[name] = msg;
+  $("#feed-status").textContent = `BFRO ${feeds.bfro} · NUFORC ${feeds.nuforc}`;
+}
+
+async function fetchCSV(urls, label, parseOpts, normalizeFn){
   for (const url of urls){
     try {
-      $("#feed-status").textContent = "STREAMING BFRO…";
+      setFeedStatus(label, "streaming");
       const res = await fetch(url);
       if (!res.ok) throw new Error("HTTP " + res.status);
       const text = await res.text();
-      const parsed = Papa.parse(text, { header: true, dynamicTyping: true, skipEmptyLines: true });
-      const norm = parsed.data.map(normalizeBFRO).filter(Boolean);
-      $("#feed-status").textContent = `BFRO OK · ${fmt(norm.length)} RECORDS`;
+      const parsed = Papa.parse(text, parseOpts);
+      const norm = parsed.data.map(normalizeFn).filter(Boolean);
+      setFeedStatus(label, `OK · ${fmt(norm.length)}`);
       return norm;
     } catch (err){
-      console.warn("BFRO fetch failed:", url, err);
+      console.warn(`${label.toUpperCase()} fetch failed:`, url, err);
     }
   }
-  $("#feed-status").textContent = "BFRO OFFLINE · CURATED ONLY";
+  setFeedStatus(label, "offline");
   return [];
+}
+
+function loadBFRO(){
+  // The original bfro_sightings_data repo now uses DVC and no longer commits the CSV.
+  // bigfoot-dash-app mirrors the same data (number, title, classification, timestamp, lat, lng).
+  return fetchCSV(
+    [
+      "https://cdn.jsdelivr.net/gh/timothyrenner/bigfoot-dash-app@master/data/bfro_report_locations.csv",
+      "https://raw.githubusercontent.com/timothyrenner/bigfoot-dash-app/master/data/bfro_report_locations.csv"
+    ],
+    "bfro",
+    { header: true, dynamicTyping: true, skipEmptyLines: true },
+    normalizeBFRO
+  );
+}
+
+function loadNUFORC(){
+  // planetsig/ufo-reports — geocoded + time-standardized NUFORC sightings (~80k rows, headerless).
+  // Columns: datetime, city, state, country, shape, duration_sec, duration_txt, comments, posted, lat, lng
+  return fetchCSV(
+    [
+      "https://cdn.jsdelivr.net/gh/planetsig/ufo-reports@master/csv-data/ufo-scrubbed-geocoded-time-standardized.csv",
+      "https://raw.githubusercontent.com/planetsig/ufo-reports/master/csv-data/ufo-scrubbed-geocoded-time-standardized.csv"
+    ],
+    "nuforc",
+    { header: false, dynamicTyping: false, skipEmptyLines: true },
+    normalizeNUFORC
+  );
 }
 
 async function boot(){
   buildCharts();
   wireUI();
+  setFeedStatus("bfro", "…");
+  setFeedStatus("nuforc", "…");
 
   const globals = GLOBAL_CASES.map(normalizeGlobal);
   state.all = globals.slice();   // show curated immediately
@@ -731,15 +834,23 @@ async function boot(){
     map.fitBounds(L.latLngBounds(state.visible.map(r => [r.lat, r.lng])).pad(.2));
   }
 
-  const bfro = await loadBFRO();
-  if (bfro.length){
-    state.all = globals.concat(bfro);
+  // Load both feeds in parallel; merge whichever returns first as it arrives.
+  const incoming = [globals];
+  const merge = (rows) => {
+    if (!rows.length) return;
+    incoming.push(rows);
+    state.all = [].concat(...incoming);
     applyFilters();
-  }
+  };
+  const bfroP = loadBFRO().then(merge);
+  const nuforcP = loadNUFORC().then(merge);
 
-  // smooth zoom into North America after data loads
-  setTimeout(() => map.flyTo([39.5, -98.35], 4, { duration: 1.4 }), 200);
-  $("#loader").classList.add("hide");
+  // smooth zoom into North America after first feed lands (or 1.5s, whichever first)
+  Promise.race([bfroP, nuforcP, new Promise(r => setTimeout(r, 1500))])
+    .then(() => {
+      map.flyTo([39.5, -98.35], 4, { duration: 1.4 });
+      $("#loader").classList.add("hide");
+    });
 }
 
 boot();
