@@ -308,6 +308,13 @@ state.layers.heat = heatLayer;
 const $ = (sel) => document.querySelector(sel);
 const fmt = (n) => n == null || Number.isNaN(n) ? "—" : new Intl.NumberFormat("en-US").format(n);
 const slug = (s) => (s || "").toString().trim();
+function debounce(fn, ms){
+  let t;
+  return function(...args){
+    clearTimeout(t);
+    t = setTimeout(() => fn.apply(this, args), ms);
+  };
+}
 
 function classOf(r){
   if (r.global) return "G";
@@ -318,12 +325,16 @@ function classOf(r){
   if (c.includes("C")) return "C";
   return "A";
 }
+const iconCache = {};
 function makeIcon(cls){
-  return L.divIcon({
-    className:"",
-    html:`<div class="sn-marker cls-${cls}"></div>`,
-    iconSize:[14,14], iconAnchor:[7,7]
-  });
+  if (!iconCache[cls]){
+    iconCache[cls] = L.divIcon({
+      className:"",
+      html:`<div class="sn-marker cls-${cls}"></div>`,
+      iconSize:[14,14], iconAnchor:[7,7]
+    });
+  }
+  return iconCache[cls];
 }
 
 function wikiFor(rec){
@@ -726,13 +737,14 @@ function wireUI(){
 
   // year range
   const ymin = $("#year-min"), ymax = $("#year-max"), ylbl = $("#year-range-label");
+  const debouncedApply = debounce(applyFilters, 140);
   function syncYears(){
     let lo = +ymin.value, hi = +ymax.value;
     if (lo > hi - 1) { lo = hi - 1; ymin.value = lo; }
     state.filters.yearMin = lo;
     state.filters.yearMax = hi;
     ylbl.textContent = `${lo} – ${hi}`;
-    applyFilters();
+    debouncedApply();
   }
   ymin.addEventListener("input", syncYears);
   ymax.addEventListener("input", syncYears);
@@ -787,14 +799,25 @@ function setFeedStatus(name, msg){
   $("#feed-status").textContent = `BFRO ${feeds.bfro} · NUFORC ${feeds.nuforc}`;
 }
 
+function parseCSVAsync(text, opts){
+  return new Promise((resolve, reject) => {
+    Papa.parse(text, Object.assign({}, opts, {
+      worker: true,
+      complete: (res) => resolve(res),
+      error: (err) => reject(err)
+    }));
+  });
+}
+
 async function fetchCSV(urls, label, parseOpts, normalizeFn){
   for (const url of urls){
     try {
-      setFeedStatus(label, "streaming");
+      setFeedStatus(label, "fetching");
       const res = await fetch(url);
       if (!res.ok) throw new Error("HTTP " + res.status);
       const text = await res.text();
-      const parsed = Papa.parse(text, parseOpts);
+      setFeedStatus(label, "parsing");
+      const parsed = await parseCSVAsync(text, parseOpts);
       const norm = parsed.data.map(normalizeFn).filter(Boolean);
       setFeedStatus(label, `OK · ${fmt(norm.length)}`);
       return norm;
