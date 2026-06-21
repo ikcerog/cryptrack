@@ -1,5 +1,5 @@
 /* ============================================================
-   SQUATCHNET — global cryptid sightings atlas
+   CrypTrack — global cryptid sightings atlas
    Live BFRO data (timothyrenner/bfro-sightings-data via jsDelivr)
    + curated global cryptid cases with Wikipedia references
    ============================================================ */
@@ -315,6 +315,32 @@ function debounce(fn, ms){
     t = setTimeout(() => fn.apply(this, args), ms);
   };
 }
+
+const VERSION = "0.4.0";
+const CHANGELOG = [
+  { version: "0.4.0", date: "2026-06-21", notes: [
+    "Rebrand: SQUATCHNET → CrypTrack.",
+    "Version chip in the header — opens this panel.",
+    "Build-notes panel shows live feed update timestamps and record counts."
+  ]},
+  { version: "0.3.0", date: "2026-06-21", notes: [
+    "CSV parsing moved to a Web Worker — no more main-thread freeze on load.",
+    "Shared marker icon cache (80k+ allocations → 5 shared instances).",
+    "Year-range slider debounced; filter changes feel snappy."
+  ]},
+  { version: "0.2.0", date: "2026-06-21", notes: [
+    "Added NUFORC UFO feed (~80k geocoded reports, planetsig/ufo-reports).",
+    "New UAP classification with violet diamond marker + filter checkbox.",
+    "Heatmap brightened (was nearly black at low density); higher intensity + minOpacity.",
+    "Mobile header reflow: status row no longer overflows off-screen.",
+    "Silenced leaflet.heat willReadFrequently warning."
+  ]},
+  { version: "0.1.0", date: "2026-06-21", notes: [
+    "Initial release: BFRO + curated global cryptids.",
+    "Fixed broken BFRO CSV URL (upstream moved to DVC); now mirrors via bigfoot-dash-app.",
+    "Inline SVG favicon; [hidden] attribute honored over component display rules."
+  ]}
+];
 
 function classOf(r){
   if (r.global) return "G";
@@ -705,8 +731,42 @@ function openModal(r){
 $("#modal-close").onclick = () => $("#modal").hidden = true;
 $("#modal").addEventListener("click", (e) => { if (e.target.id === "modal") $("#modal").hidden = true; });
 
+/* ---------- 11b. PATCH NOTES ---------- */
+function openPatchNotes(){
+  $("#pn-version").textContent = "v" + VERSION;
+  const latest = CHANGELOG[0];
+  $("#pn-meta").textContent = `Last build · ${latest.date}`.toUpperCase();
+
+  $("#pn-notes").innerHTML = CHANGELOG.map(e => `
+    <li>
+      <div class="pn-head"><b>v${e.version}</b> <span class="muted">${e.date}</span></div>
+      <ul>${e.notes.map(n => `<li>${n}</li>`).join("")}</ul>
+    </li>
+  `).join("");
+
+  $("#pn-feeds").innerHTML = Object.entries(feeds).map(([k, m]) => {
+    const upd = m.updated ? new Date(m.updated) : null;
+    const updTxt = upd && !isNaN(upd) ? upd.toUTCString() : "—";
+    return `
+      <li>
+        <div class="pn-head"><b>${m.label}</b> <span class="muted">${m.status}</span></div>
+        <span class="pn-feed-meta">source · ${m.source}</span>
+        <span class="pn-feed-meta">upstream last-modified · ${updTxt}</span>
+        <span class="pn-feed-meta">records · ${m.count ? fmt(m.count) : "—"}</span>
+      </li>`;
+  }).join("");
+
+  $("#patch-modal").hidden = false;
+}
+$("#patch-close").onclick = () => $("#patch-modal").hidden = true;
+$("#patch-modal").addEventListener("click", (e) => { if (e.target.id === "patch-modal") $("#patch-modal").hidden = true; });
+
 /* ---------- 12. UI WIRING ---------- */
 function wireUI(){
+  // version chip → patch notes
+  $("#ver-num").textContent = "v" + VERSION;
+  $("#ver-chip").addEventListener("click", openPatchNotes);
+
   // view chips
   document.querySelectorAll(".chip").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -793,10 +853,13 @@ function wireUI(){
 }
 
 /* ---------- 13. DATA LOAD ---------- */
-const feeds = { bfro: "…", nuforc: "…" };
-function setFeedStatus(name, msg){
-  feeds[name] = msg;
-  $("#feed-status").textContent = `BFRO ${feeds.bfro} · NUFORC ${feeds.nuforc}`;
+const feeds = {
+  bfro:   { label: "BFRO",   status: "…", count: 0, updated: null, source: "timothyrenner/bigfoot-dash-app" },
+  nuforc: { label: "NUFORC", status: "…", count: 0, updated: null, source: "planetsig/ufo-reports" }
+};
+function setFeedStatus(name, status){
+  feeds[name].status = status;
+  $("#feed-status").textContent = `BFRO ${feeds.bfro.status} · NUFORC ${feeds.nuforc.status}`;
 }
 
 function parseCSVAsync(text, opts){
@@ -815,10 +878,14 @@ async function fetchCSV(urls, label, parseOpts, normalizeFn){
       setFeedStatus(label, "fetching");
       const res = await fetch(url);
       if (!res.ok) throw new Error("HTTP " + res.status);
+      // Last-Modified is a CORS-safelisted response header, so it's readable here.
+      const lm = res.headers.get("last-modified");
+      if (lm) feeds[label].updated = lm;
       const text = await res.text();
       setFeedStatus(label, "parsing");
       const parsed = await parseCSVAsync(text, parseOpts);
       const norm = parsed.data.map(normalizeFn).filter(Boolean);
+      feeds[label].count = norm.length;
       setFeedStatus(label, `OK · ${fmt(norm.length)}`);
       return norm;
     } catch (err){

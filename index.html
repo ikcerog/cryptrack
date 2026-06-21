@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>SQUATCHNET // Global Cryptid Sightings Atlas</title>
+  <title>CrypTrack // Global Cryptid Sightings Atlas</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230a0a0a'/%3E%3Ctext x='50%25' y='54%25' font-family='monospace' font-size='40' font-weight='700' text-anchor='middle' dominant-baseline='middle' fill='%2300ff88'%3E%E2%97%89%3C/text%3E%3C/svg%3E" />
 
   <!-- Fonts -->
@@ -41,7 +41,7 @@
         <circle cx="16" cy="16" r="2.2" fill="currentColor"/>
       </svg>
       <div class="brand-text">
-        <div class="brand-title">SQUATCH<span>NET</span></div>
+        <div class="brand-title">Cryp<span>Track</span></div>
         <div class="brand-sub">Global Cryptid Sightings Atlas</div>
       </div>
     </div>
@@ -61,6 +61,9 @@
     <div class="status">
       <div class="status-row"><span class="lbl">FEED</span><span class="val" id="feed-status">CONNECTING…</span></div>
       <div class="status-row"><span class="lbl">UTC</span><span class="val" id="clock">--:--:--</span></div>
+      <button class="ver-chip" id="ver-chip" title="Build notes & feed status">
+        <span class="lbl">VER</span><span class="val" id="ver-num">v—</span>
+      </button>
     </div>
   </header>
 
@@ -208,6 +211,26 @@
       </section>
     </aside>
   </main>
+
+  <!-- Patch notes modal -->
+  <div id="patch-modal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-x" id="patch-close" aria-label="Close">×</button>
+      <div class="modal-tag">CRYPTRACK · BUILD NOTES</div>
+      <h3 class="modal-title">Version <span id="pn-version">—</span></h3>
+      <div class="modal-meta" id="pn-meta">—</div>
+      <div class="modal-grid">
+        <div>
+          <div class="modal-sub">Patch notes</div>
+          <ul class="patch-list" id="pn-notes"></ul>
+        </div>
+        <div>
+          <div class="modal-sub">Live feeds</div>
+          <ul class="patch-list patch-feeds" id="pn-feeds"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Detail modal -->
   <div id="modal" class="modal" hidden>

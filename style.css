@@ -1,5 +1,5 @@
 /* ============================================================
-   SQUATCHNET — cryptid sightings atlas
+   CrypTrack — cryptid sightings atlas
    Dark high-tech theme: phosphor green on deep navy graphite
    ============================================================ */
 
@@ -117,6 +117,26 @@ body{
 .status-row{display:flex; gap:8px; align-items:baseline}
 .status .lbl{color:var(--muted); letter-spacing:.14em}
 .status .val{color:var(--accent); letter-spacing:.12em}
+.ver-chip{
+  display:inline-flex; align-items:baseline; gap:6px;
+  font:inherit;
+  background:transparent;
+  border:1px solid rgba(57,255,20,.32);
+  color:inherit;
+  padding:3px 9px;
+  border-radius:5px;
+  cursor:pointer;
+  transition:border-color .15s ease, background .15s ease;
+}
+.ver-chip:hover{border-color:var(--accent); background:rgba(57,255,20,.08)}
+.patch-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:12px}
+.patch-list > li{padding:10px 12px; border:1px solid var(--line); border-radius:6px; background:rgba(20,28,36,.4)}
+.patch-list > li > .pn-head{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap}
+.patch-list > li > .pn-head b{color:var(--accent); font-family:'JetBrains Mono', monospace; letter-spacing:.06em}
+.patch-list > li > .pn-head .muted{font-family:'JetBrains Mono', monospace; font-size:11px}
+.patch-list ul{margin:6px 0 0; padding-left:18px; color:var(--txt-dim)}
+.patch-list ul li{margin:3px 0; font-size:13px; line-height:1.45}
+.patch-feeds .pn-feed-meta{display:block; font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--txt-dim); margin-top:4px}
 
 /* --------- layout --------- */
 .layout{
