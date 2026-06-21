@@ -11,7 +11,7 @@ build step — open `index.html` (or serve the folder) and it runs.
 
 ## What's in it
 
-- **Leaflet** dark CartoDB tiles, marker clustering, heatmap layer toggle
+- **Leaflet** dark CartoDB tiles with marker clustering
 - **Live BFRO feed** — ~5,000 geocoded Sasquatch reports via the
   `timothyrenner/bigfoot-dash-app` mirror (CSV → PapaParse Web Worker)
 - **Live NUFORC feed** — ~80,000 geocoded UFO/UAP reports from

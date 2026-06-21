@@ -4,33 +4,6 @@
    + curated global cryptid cases with Wikipedia references
    ============================================================ */
 
-// leaflet.heat reads pixel data each frame via getImageData; flag its
-// canvas with willReadFrequently so Chrome stops warning and uses a
-// software backing store that's faster for that access pattern.
-(function patchHeatCanvas(){
-  const orig = HTMLCanvasElement.prototype.getContext;
-  HTMLCanvasElement.prototype.getContext = function(type, attrs){
-    if (type === "2d" && this.classList && this.classList.contains("leaflet-heatmap-layer")){
-      attrs = Object.assign({ willReadFrequently: true }, attrs || {});
-    }
-    return orig.call(this, type, attrs);
-  };
-})();
-
-// leaflet.heat 0.2.0 schedules _redraw via requestAnimationFrame inside
-// setLatLngs/redraw. If the layer is removed from the map before that
-// frame fires, _redraw runs with this._map === null and throws
-// "Cannot read properties of null (reading 'getSize')". Guard it.
-(function patchHeatRedraw(){
-  if (!window.L || !L.HeatLayer || !L.HeatLayer.prototype) return;
-  const proto = L.HeatLayer.prototype;
-  const origRedraw = proto._redraw;
-  proto._redraw = function(){
-    if (!this._map){ this._frame = null; return; }
-    return origRedraw.apply(this, arguments);
-  };
-})();
-
 /* ---------- 1. CURATED GLOBAL CRYPTID CASES ---------- */
 /* Famous, historically significant or globally notable cryptid
    reports — hand-curated with Wikipedia links and rich blurbs. */
@@ -273,7 +246,6 @@ const state = {
     seasons: new Set(["Spring", "Summer", "Fall", "Winter", "Unknown"]),
     query: ""
   },
-  view: "markers",    // markers | heatmap | both
   layers: {},
   charts: {}
 };
@@ -312,12 +284,6 @@ const cluster = L.markerClusterGroup({
 });
 state.layers.cluster = cluster;
 
-const heatLayer = L.heatLayer([], {
-  radius: 22, blur: 28, maxZoom: 12, minOpacity: 0.4,
-  gradient: { 0.0:"#0b6a3d", 0.25:"#00ff88", 0.5:"#aaff00", 0.75:"#ffb648", 1.0:"#ff4dd2" }
-});
-state.layers.heat = heatLayer;
-
 /* ---------- 4. HELPERS ---------- */
 const $ = (sel) => document.querySelector(sel);
 const fmt = (n) => n == null || Number.isNaN(n) ? "—" : new Intl.NumberFormat("en-US").format(n);
@@ -330,8 +296,13 @@ function debounce(fn, ms){
   };
 }
 
-const VERSION = "0.4.0";
+const VERSION = "0.5.0";
 const CHANGELOG = [
+  { version: "0.5.0", date: "2026-06-21", notes: [
+    "Removed the heatmap layer (leaflet.heat 0.2.0 kept crashing on toggle).",
+    "Top-bar view chips removed; markers are the only view now.",
+    "Dropped the leaflet.heat dependency and its supporting patches."
+  ]},
   { version: "0.4.0", date: "2026-06-21", notes: [
     "Rebrand: SQUATCHNET → CrypTrack.",
     "Version chip in the header — opens this panel.",
@@ -488,38 +459,10 @@ function makeMarker(rec){
 }
 
 function rebuildMap(){
-  const showHeat    = state.view === "heatmap" || state.view === "both";
-  const showMarkers = state.view === "markers" || state.view === "both";
-
   cluster.clearLayers();
-  const markers = [];
-  const heatPts = [];
-  for (const r of state.visible){
-    if (showMarkers) markers.push(makeMarker(r));
-    if (showHeat)    heatPts.push([r.lat, r.lng, r.global ? 1.0 : 0.75]);
-  }
-
-  // Markers layer
-  if (showMarkers){
-    cluster.addLayers(markers);
-    if (!map.hasLayer(cluster)) map.addLayer(cluster);
-  } else if (map.hasLayer(cluster)){
-    map.removeLayer(cluster);
-  }
-
-  // Heat layer: add FIRST (so _map is set), then set data — avoids the
-  // race where setLatLngs() schedules a frame and we then remove the
-  // layer before the frame fires.
-  if (showHeat){
-    if (!map.hasLayer(heatLayer)) map.addLayer(heatLayer);
-    heatLayer.setLatLngs(heatPts);
-  } else if (map.hasLayer(heatLayer)){
-    if (heatLayer._frame){
-      cancelAnimationFrame(heatLayer._frame);
-      heatLayer._frame = null;
-    }
-    map.removeLayer(heatLayer);
-  }
+  const markers = state.visible.map(makeMarker);
+  cluster.addLayers(markers);
+  if (!map.hasLayer(cluster)) map.addLayer(cluster);
 
   $("#vis-count").textContent = fmt(state.visible.length);
   $("#stat-total").textContent = fmt(state.visible.length);
@@ -794,16 +737,6 @@ function wireUI(){
   const patchModal = $("#patch-modal");
   if (patchClose) patchClose.addEventListener("click", () => patchModal.hidden = true);
   if (patchModal) patchModal.addEventListener("click", (e) => { if (e.target.id === "patch-modal") patchModal.hidden = true; });
-
-  // view chips
-  document.querySelectorAll(".chip").forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".chip").forEach(b => b.setAttribute("aria-pressed", "false"));
-      btn.setAttribute("aria-pressed", "true");
-      state.view = btn.dataset.view;
-      rebuildMap();
-    });
-  });
 
   // class filters
   document.querySelectorAll('input[data-class]').forEach(cb => {
