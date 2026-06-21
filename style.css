@@ -118,17 +118,23 @@ body{
 .status .lbl{color:var(--muted); letter-spacing:.14em}
 .status .val{color:var(--accent); letter-spacing:.12em}
 .ver-chip{
-  display:inline-flex; align-items:baseline; gap:6px;
-  font:inherit;
+  display:inline-flex; align-items:center; gap:6px;
+  font-family:'JetBrains Mono', monospace;
+  font-size:11px;
+  line-height:1;
   background:transparent;
-  border:1px solid rgba(57,255,20,.32);
-  color:inherit;
-  padding:3px 9px;
+  border:1px solid rgba(57,255,20,.35);
+  color:var(--txt);
+  padding:5px 10px;
   border-radius:5px;
   cursor:pointer;
-  transition:border-color .15s ease, background .15s ease;
+  white-space:nowrap;
+  transition:border-color .15s ease, background .15s ease, transform .15s ease;
 }
-.ver-chip:hover{border-color:var(--accent); background:rgba(57,255,20,.08)}
+.ver-chip .lbl{color:var(--muted); letter-spacing:.14em}
+.ver-chip .val{color:var(--accent); letter-spacing:.12em}
+.ver-chip:hover{border-color:var(--accent); background:rgba(57,255,20,.1)}
+.ver-chip:active{transform:translateY(1px)}
 .patch-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:12px}
 .patch-list > li{padding:10px 12px; border:1px solid var(--line); border-radius:6px; background:rgba(20,28,36,.4)}
 .patch-list > li > .pn-head{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap}
